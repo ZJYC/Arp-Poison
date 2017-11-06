@@ -1,3 +1,5 @@
-import main as MAIN
-MAIN.Table1 = "ZJYC"
-MAIN.Table2 = "1234"
+import subprocess as s
+
+process = s.Popen("get.py",shell=True)
+
+print("PID is %d "%process.pid)
